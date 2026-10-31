@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>社团动态 · 桂东一中计算机社团</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="../index.html">桂东一中计算机社团</a>
+      <nav class="nav">
+        <a href="../index.html">首页</a>
+        <a class="active" href="index.html">社团动态</a>
+        <a href="../services/index.html">一件事方便办</a>
+        <a href="../charter/index.html">社团总纲</a>
+        <a href="../index.html#departments">部门</a>
+        <a href="../index.html#activities">活动</a>
+        <a href="../index.html#join">加入我们</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-head">
+      <div class="wrap">
+        <p class="crumbs"><a href="../index.html">首页</a> / 社团动态</p>
+        <h1>社团动态</h1>
+        <p>社团公告、活动通知与招新安排，由管理员定期发布。</p>
+      </div>
+    </div>
+
+    <div class="wrap page-body">
+      <div id="news-list" class="news-list">
+        <p class="empty">正在加载…</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>规范 · 开放 · 协作 · 进取</span>
+      <span>© 2026 桂东一中计算机社团 · <a href="../index.html">返回首页</a> · <a href="../admin/">管理员入口</a></span>
+    </div>
+  </footer>
+
+  <script>
+    const list = document.getElementById('news-list');
+
+    function render(items) {
+      list.textContent = '';
+      if (!items.length) {
+        const p = document.createElement('p');
+        p.className = 'empty';
+        p.textContent = '暂时还没有公告，过段时间再来看看。';
+        list.append(p);
+        return;
+      }
+      for (const item of items) {
+        const article = document.createElement('article');
+        article.className = 'news-item';
+
+        const meta = document.createElement('div');
+        meta.className = 'news-meta';
+        const time = document.createElement('time');
+        time.textContent = item.created_at;
+        meta.append(time);
+        if (item.pinned) {
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = '置顶';
+          meta.append(badge);
+        }
+
+        const title = document.createElement('h3');
+        title.textContent = item.title;
+
+        const body = document.createElement('p');
+        body.className = 'news-body';
+        body.textContent = item.body;
+
+        article.append(meta, title, body);
+        list.append(article);
+      }
+    }
+
+    async function load() {
+      try {
+        const res = await fetch('../api/news');
+        if (!res.ok) throw new Error('bad response');
+        const data = await res.json();
+        render(data.items || []);
+      } catch (err) {
+        list.textContent = '';
+        const p = document.createElement('p');
+        p.className = 'empty';
+        p.textContent = '公告暂时无法加载，请稍后重试或联系社团管理员。';
+        list.append(p);
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

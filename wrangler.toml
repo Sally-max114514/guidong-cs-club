@@ -1,0 +1,8 @@
+name = "guidong-computer-club"
+pages_build_output_dir = "./dist"
+compatibility_date = "2025-03-01"
+
+[[d1_databases]]
+binding = "CLUB_DB"
+database_name = "guidong-computer-club"
+database_id = "1deadb97-cdc7-4afa-b9ac-818b5640b280"

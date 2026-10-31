@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>一件事方便办 · 桂东一中计算机社团</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="../index.html">桂东一中计算机社团</a>
+      <nav class="nav">
+        <a href="../index.html">首页</a>
+        <a href="../news/index.html">社团动态</a>
+        <a class="active" href="index.html">一件事方便办</a>
+        <a href="../charter/index.html">社团总纲</a>
+        <a href="../index.html#departments">部门</a>
+        <a href="../index.html#activities">活动</a>
+        <a href="../index.html#join">加入我们</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-head">
+      <div class="wrap">
+        <p class="crumbs"><a href="../index.html">首页</a> / 一件事方便办</p>
+        <h1>一件事方便办</h1>
+        <p>报名、登记这类小事，在线上一次办完，不用到处找人。</p>
+      </div>
+    </div>
+
+    <div class="wrap page-body">
+      <div class="rows">
+        <div class="row">
+          <h3>社团招新网上报名</h3>
+          <p>填一张表就行，提交后由社团统一联系。目前报名通道开放中。</p>
+        </div>
+      </div>
+
+      <section id="signup" style="padding-top: 2.5rem;">
+        <h2 class="section-title">社团招新网上报名</h2>
+        <p class="section-sub">带 * 的为必填项；报名信息仅用于社团招新联络。</p>
+
+        <form id="signup-form" class="form" style="margin-top: 1.5rem;" novalidate>
+          <div class="field">
+            <label for="name">姓名 *</label>
+            <input id="name" name="name" maxlength="30" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="class_name">班级 *</label>
+            <input id="class_name" name="class_name" maxlength="30" placeholder="例如：高一(3)班" required>
+          </div>
+          <div class="field">
+            <label for="contact">联系方式（QQ / 微信 / 手机，选填）</label>
+            <input id="contact" name="contact" maxlength="60" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="direction">意向方向</label>
+            <select id="direction" name="direction">
+              <option value="">还没想好</option>
+              <option value="程序开发">程序开发与设计</option>
+              <option value="硬件装配">硬件装配与搭配</option>
+              <option value="人工智能">人工智能开发训练</option>
+              <option value="平面设计">计算机辅助平面设计</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="note">想说的话（选填）</label>
+            <textarea id="note" name="note" maxlength="300" placeholder="比如：会一点 Python，想学装机，或者想帮忙做海报。"></textarea>
+          </div>
+
+          <div id="signup-msg" hidden></div>
+
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">提交报名</button>
+            <span class="hint">提交后如需修改，请联系社团负责人。</span>
+          </div>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>规范 · 开放 · 协作 · 进取</span>
+      <span>© 2026 桂东一中计算机社团 · <a href="../index.html">返回首页</a> · <a href="../admin/">管理员入口</a></span>
+    </div>
+  </footer>
+
+  <script>
+    const form = document.getElementById('signup-form');
+    const msg = document.getElementById('signup-msg');
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    function show(text, type) {
+      msg.hidden = false;
+      msg.className = 'msg ' + type;
+      msg.textContent = text;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(form).entries());
+
+      if (!data.name.trim() || !data.class_name.trim()) {
+        show('请先填写姓名和班级。', 'msg-err');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = '提交中…';
+      try {
+        const res = await fetch('../api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result.error || '提交失败，请稍后再试。');
+
+        show('报名已提交，请等待社团联系。', 'msg-ok');
+        form.reset();
+      } catch (err) {
+        const offline = err instanceof TypeError;
+        show(offline ? '暂时无法连接报名服务，请稍后重试。' : err.message, 'msg-err');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '提交报名';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理后台 · 桂东一中计算机社团</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="../index.html">桂东一中计算机社团 · 管理后台</a>
+      <nav class="nav">
+        <a href="../index.html">返回首页</a>
+        <a href="../news/index.html">社团动态</a>
+        <a href="../services/index.html">一件事方便办</a>
+        <button class="btn btn-sm" id="logout-btn" type="button" hidden>退出登录</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap page-body">
+    <section id="login-view" class="panel" hidden>
+      <h2>管理员登录</h2>
+      <form id="login-form" class="form">
+        <div class="field">
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <div id="login-msg" hidden></div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">登录</button>
+          <span class="hint">管理员密码由 Cloudflare Pages Secrets 配置。</span>
+        </div>
+      </form>
+    </section>
+
+    <div id="dash-view" hidden>
+      <section class="panel">
+        <h2>发布社团动态</h2>
+        <form id="news-form" class="form">
+          <div class="field">
+            <label for="news-title">标题 *</label>
+            <input id="news-title" name="title" maxlength="80" required>
+          </div>
+          <div class="field">
+            <label for="news-body">内容 *</label>
+            <textarea id="news-body" name="body" maxlength="5000" required></textarea>
+          </div>
+          <div class="field">
+            <label style="display:flex; gap:.5rem; align-items:center;">
+              <input type="checkbox" id="news-pinned" name="pinned" style="width:auto;">
+              置顶显示
+            </label>
+          </div>
+          <div id="news-msg" hidden></div>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">发布</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <h2 style="margin:0;">已发布公告</h2>
+          <span class="spacer"></span>
+          <span class="count" id="news-count"></span>
+          <button class="btn btn-sm" id="refresh-news" type="button">刷新</button>
+        </div>
+        <div id="news-admin" class="empty">正在加载…</div>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <h2 style="margin:0;">招新报名</h2>
+          <span class="spacer"></span>
+          <span class="count" id="signup-count"></span>
+          <button class="btn btn-sm" id="refresh-signups" type="button">刷新</button>
+          <a class="btn btn-sm" id="export-btn" href="../api/export.csv">导出 CSV 表格</a>
+        </div>
+        <div class="table-wrap" id="signups-table"></div>
+      </section>
+
+      <p class="hint">需要更换管理员密码时，请在 Cloudflare Pages 项目 Secrets 中更新 ADMIN_PASSWORD。</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>规范 · 开放 · 协作 · 进取</span>
+      <span>© 2026 桂东一中计算机社团 · <a href="../index.html">返回首页</a></span>
+    </div>
+  </footer>
+
+  <script>
+    const loginView = document.getElementById('login-view');
+    const dashView = document.getElementById('dash-view');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    function showMessage(el, text, type) {
+      el.hidden = false;
+      el.className = 'msg ' + type;
+      el.textContent = text;
+    }
+
+    function hideMessage(el) {
+      el.hidden = true;
+      el.textContent = '';
+    }
+
+    async function api(url, options) {
+      const res = await fetch(url, options);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '操作失败');
+      return data;
+    }
+
+    function showLogin() {
+      loginView.hidden = false;
+      dashView.hidden = true;
+      logoutBtn.hidden = true;
+    }
+
+    function showDash() {
+      loginView.hidden = true;
+      dashView.hidden = false;
+      logoutBtn.hidden = false;
+      loadNews();
+      loadSignups();
+    }
+
+    // ---------- 登录 ----------
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const msg = document.getElementById('login-msg');
+      hideMessage(msg);
+      try {
+        await api('../api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: document.getElementById('password').value }),
+        });
+        document.getElementById('password').value = '';
+        showDash();
+      } catch (err) {
+        showMessage(msg, err.message, 'msg-err');
+      }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+      await fetch('../api/logout', { method: 'POST' }).catch(() => {});
+      showLogin();
+    });
+
+    // ---------- 公告 ----------
+    async function loadNews() {
+      const box = document.getElementById('news-admin');
+      const count = document.getElementById('news-count');
+      try {
+        const data = await api('../api/news');
+        const items = data.items || [];
+        count.textContent = '共 ' + items.length + ' 条';
+        box.textContent = '';
+        box.className = '';
+        if (!items.length) {
+          box.className = 'empty';
+          box.textContent = '还没有发布过公告。';
+          return;
+        }
+        for (const item of items) {
+          const row = document.createElement('div');
+          row.className = 'admin-item';
+
+          const info = document.createElement('div');
+          const title = document.createElement('h4');
+          title.textContent = (item.pinned ? '[置顶] ' : '') + item.title;
+          const meta = document.createElement('p');
+          meta.textContent = item.created_at + ' · ' + item.body.slice(0, 60) + (item.body.length > 60 ? '…' : '');
+          info.append(title, meta);
+
+          const del = document.createElement('button');
+          del.className = 'btn btn-sm btn-danger';
+          del.type = 'button';
+          del.textContent = '删除';
+          del.addEventListener('click', async () => {
+            if (!confirm('确定删除这条公告？')) return;
+            try {
+              await api('../api/news/' + item.id, { method: 'DELETE' });
+              loadNews();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+
+          row.append(info, del);
+          box.append(row);
+        }
+      } catch (err) {
+        box.className = 'empty';
+        box.textContent = '加载失败：' + err.message;
+      }
+    }
+
+    document.getElementById('news-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const msg = document.getElementById('news-msg');
+      hideMessage(msg);
+      const form = event.target;
+      try {
+        await api('../api/news', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: form.title.value,
+            body: form.body.value,
+            pinned: document.getElementById('news-pinned').checked,
+          }),
+        });
+        form.reset();
+        showMessage(msg, '已发布。', 'msg-ok');
+        loadNews();
+      } catch (err) {
+        showMessage(msg, err.message, 'msg-err');
+      }
+    });
+
+    document.getElementById('refresh-news').addEventListener('click', loadNews);
+
+    // ---------- 报名 ----------
+    async function loadSignups() {
+      const tableBox = document.getElementById('signups-table');
+      const count = document.getElementById('signup-count');
+      try {
+        const data = await api('../api/signups');
+        const items = data.items || [];
+        count.textContent = '共 ' + data.count + ' 人';
+        tableBox.textContent = '';
+        if (!items.length) {
+          tableBox.className = 'table-wrap empty';
+          tableBox.textContent = '还没有人报名。';
+          return;
+        }
+        tableBox.className = 'table-wrap';
+
+        const table = document.createElement('table');
+        table.className = 'data-table';
+        const head = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        for (const label of ['序号', '姓名', '班级', '联系方式', '意向方向', '备注', '报名时间']) {
+          const th = document.createElement('th');
+          th.textContent = label;
+          headRow.append(th);
+        }
+        head.append(headRow);
+        table.append(head);
+
+        const tbody = document.createElement('tbody');
+        for (const item of items) {
+          const tr = document.createElement('tr');
+          for (const value of [item.id, item.name, item.class_name, item.contact, item.direction, item.note, item.created_at]) {
+            const td = document.createElement('td');
+            td.textContent = value;
+            tr.append(td);
+          }
+          tbody.append(tr);
+        }
+        table.append(tbody);
+        tableBox.append(table);
+      } catch (err) {
+        tableBox.className = 'empty';
+        tableBox.textContent = '加载失败：' + err.message;
+      }
+    }
+
+    document.getElementById('refresh-signups').addEventListener('click', loadSignups);
+
+    // ---------- 启动 ----------
+    (async () => {
+      try {
+        const data = await api('../api/me');
+        if (data.admin) showDash();
+        else showLogin();
+      } catch (err) {
+        showLogin();
+        showMessage(document.getElementById('login-msg'), '无法连接服务端，请检查 Pages Functions、D1 绑定和管理员 Secrets。', 'msg-err');
+      }
+    })();
+  </script>
+</body>
+</html>
