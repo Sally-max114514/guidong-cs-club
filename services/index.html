@@ -43,18 +43,32 @@
         <h2 class="section-title">社团招新网上报名</h2>
         <p class="section-sub">带 * 的为必填项；报名信息仅用于社团招新联络。</p>
 
-        <form id="signup-form" class="form" style="margin-top: 1.5rem;" novalidate>
+        <form id="signup-form" class="form" style="margin-top: 1.5rem;">
           <div class="field">
             <label for="name">姓名 *</label>
-            <input id="name" name="name" maxlength="30" autocomplete="name" required>
+            <input id="name" name="name" maxlength="10" autocomplete="name" required>
           </div>
-          <div class="field">
-            <label for="class_name">班级 *</label>
-            <input id="class_name" name="class_name" maxlength="30" placeholder="例如：高一(3)班" required>
+          <div class="field-pair">
+            <div class="field">
+              <label for="grade">年级 *</label>
+              <select id="grade" name="grade" required>
+                <option value="" selected disabled>请选择年级</option>
+                <option value="高一">高一</option>
+                <option value="高二">高二</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="class_num">班级号 *</label>
+              <input id="class_num" name="class_num" type="text" maxlength="6" placeholder="例如：476班 或 3班" required>
+            </div>
           </div>
           <div class="field">
             <label for="contact">联系方式（QQ / 微信 / 手机，选填）</label>
-            <input id="contact" name="contact" maxlength="60" autocomplete="off">
+            <input id="contact" name="contact" maxlength="15" pattern="\d{5,15}" title="请输入5-15位数字" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="invite_code">社团暗号 *</label>
+            <input id="invite_code" name="invite_code" maxlength="32" autocomplete="off" required>
           </div>
           <div class="field">
             <label for="direction">意向方向</label>
@@ -72,6 +86,11 @@
           </div>
 
           <div id="signup-msg" hidden></div>
+
+          <div style="display: none !important;">
+            <label for="website">Website</label>
+            <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+          </div>
 
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">提交报名</button>
@@ -103,11 +122,17 @@
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(form).entries());
+      const grade = String(data.grade || '').trim();
+      const classNum = String(data.class_num || '').trim();
 
-      if (!data.name.trim() || !data.class_name.trim()) {
-        show('请先填写姓名和班级。', 'msg-err');
+      if (!grade || !classNum) {
+        alert('请先选择年级并填写班级号。');
         return;
       }
+
+      data.class_name = `${grade}${classNum}`;
+      delete data.grade;
+      delete data.class_num;
 
       submitBtn.disabled = true;
       submitBtn.textContent = '提交中…';

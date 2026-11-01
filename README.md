@@ -22,6 +22,8 @@
    npm run db:apply:remote
    ```
 
+   新安装时会同时创建暗号配置表，并将初始社团暗号设为 `GDCSU2026`。已有部署请先应用迁移，再部署使用该表的 Functions。
+
 5. 在 Cloudflare Pages 项目的 **Settings → Variables and Secrets** 中添加生产和 Preview Secrets：
    - `ADMIN_PASSWORD`：管理员密码，至少 12 位
    - `SESSION_SECRET`：随机会话密钥，至少 32 位。可用 `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"` 生成。
@@ -41,9 +43,13 @@ npm run dev
 
 本地页面地址为 `http://localhost:8788`。本地 D1 与线上 D1 相互独立。
 
+若使用 `node server.js` 进行本地预览，该独立 Node 服务将社团暗号保存在忽略提交的 `data/db.json` 中，不连接 Wrangler 的本地 D1；Wrangler 本地迁移仅用于 `npm run dev` 的 Pages Functions 预览。
+
 ## 日常管理
 
 - 管理员在 `/admin/` 登录，可发布/删除社团动态、查看报名人数并导出 CSV。
+- 管理员可按“待审核 / 已录取 / 未录取”筛选报名，修改审核状态，或确认后删除无效记录。新增报名默认待审核；CSV 导出包含审核状态，也会遵循当前筛选条件。
+- 管理员可在后台“系统设置”中修改报名所需的社团暗号；暗号不区分大小写。
 - 修改线上管理员密码时，在 Cloudflare Pages Secrets 中更新 `ADMIN_PASSWORD`。
 - 报名数据包含姓名、班级及可选联系方式，请仅限负责招新的管理员访问，并按学校要求妥善保管、及时清理。
 - 不要提交 `.dev.vars`、`data/` 或其他真实报名信息。

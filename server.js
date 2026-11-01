@@ -67,13 +67,32 @@ function ensureDataDir() {
 
 function loadDb() {
   ensureDataDir();
-  if (!fs.existsSync(DB_FILE)) return { news: [], signups: [] };
+  if (!fs.existsSync(DB_FILE)) {
+    return { news: [], signups: [], settings: { invite_code: 'GDCSU2026' } };
+  }
   try {
     const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    return { news: Array.isArray(data.news) ? data.news : [], signups: Array.isArray(data.signups) ? data.signups : [] };
+    const settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+    return {
+      news: Array.isArray(data.news) ? data.news : [],
+      signups: Array.isArray(data.signups)
+        ? data.signups.map((item) => ({
+          ...item,
+          review_status: ['pending', 'admitted', 'rejected'].includes(item.review_status)
+            ? item.review_status
+            : 'pending',
+        }))
+        : [],
+      settings: {
+        ...settings,
+        invite_code: typeof settings.invite_code === 'string' && settings.invite_code.trim()
+          ? settings.invite_code.trim()
+          : 'GDCSU2026',
+      },
+    };
   } catch (err) {
     console.error('data/db.json 读取失败，已使用空数据：', err.message);
-    return { news: [], signups: [] };
+    return { news: [], signups: [], settings: { invite_code: 'GDCSU2026' } };
   }
 }
 
@@ -272,7 +291,7 @@ function serveStatic(req, res, pathname) {
 
 // ---------------------------------------------------------------- API
 
-async function handleApi(req, res, pathname) {
+async function handleApi(req, res, pathname, searchParams) {
   const method = req.method;
 
   if (method === 'GET' && pathname === '/api/news') {
@@ -286,18 +305,40 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  if (method === 'GET' && pathname === '/api/settings') {
+    requireAdmin(req);
+    sendJson(res, 200, { invite_code: db.settings.invite_code });
+    return;
+  }
+
   if (method === 'GET' && pathname === '/api/signups') {
     requireAdmin(req);
-    const items = [...db.signups].sort((a, b) => b.id - a.id);
+    const status = searchParams.get('status') || 'all';
+    if (status !== 'all' && !['pending', 'admitted', 'rejected'].includes(status)) {
+      throw new ApiError(400, '报名审核状态筛选条件不正确');
+    }
+    const filteredSignups = status === 'all'
+      ? db.signups
+      : db.signups.filter((item) => item.review_status === status);
+    const items = [...filteredSignups].sort((a, b) => b.id - a.id);
     sendJson(res, 200, { count: items.length, items });
     return;
   }
 
   if (method === 'GET' && pathname === '/api/export.csv') {
     requireAdmin(req);
-    const header = ['序号', '姓名', '班级', '联系方式', '意向方向', '备注', '报名时间'];
-    const rows = [...db.signups].sort((a, b) => a.id - b.id).map((item) => [
-      item.id, item.name, item.class_name, item.contact, item.direction, item.note, item.created_at,
+    const status = searchParams.get('status') || 'all';
+    if (status !== 'all' && !['pending', 'admitted', 'rejected'].includes(status)) {
+      throw new ApiError(400, '报名审核状态筛选条件不正确');
+    }
+    const filteredSignups = status === 'all'
+      ? db.signups
+      : db.signups.filter((item) => item.review_status === status);
+    const header = ['序号', '姓名', '班级', '联系方式', '意向方向', '备注', '审核状态', '报名时间'];
+    const statusLabels = { pending: '待审核', admitted: '已录取', rejected: '未录取' };
+    const rows = [...filteredSignups].sort((a, b) => a.id - b.id).map((item) => [
+      item.id, item.name, item.class_name, item.contact, item.direction, item.note,
+      statusLabels[item.review_status] || '待审核', item.created_at,
     ]);
     const csv = '\ufeff' + [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
     const body = Buffer.from(csv, 'utf8');
@@ -359,6 +400,41 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  if (method === 'POST' && pathname === '/api/settings') {
+    requireAdmin(req);
+    const data = await readJson(req);
+    const inviteCode = String(data.invite_code || '').trim();
+    if (!inviteCode || inviteCode.length > 32) {
+      throw new ApiError(400, '社团暗号不能为空，且不超过 32 个字符');
+    }
+    db.settings.invite_code = inviteCode;
+    saveDb();
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if ((method === 'PATCH' || method === 'DELETE') && pathname.startsWith('/api/signups/')) {
+    requireAdmin(req);
+    const id = Number(pathname.slice('/api/signups/'.length));
+    if (!Number.isSafeInteger(id) || id <= 0) throw new ApiError(400, '参数错误');
+    const index = db.signups.findIndex((item) => item.id === id);
+    if (index === -1) throw new ApiError(404, '报名记录不存在');
+
+    if (method === 'PATCH') {
+      const data = await readJson(req);
+      const status = String(data.review_status || '');
+      if (!['pending', 'admitted', 'rejected'].includes(status)) {
+        throw new ApiError(400, '报名审核状态不正确');
+      }
+      db.signups[index].review_status = status;
+    } else {
+      db.signups.splice(index, 1);
+    }
+    saveDb();
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   if (method === 'DELETE' && pathname.startsWith('/api/news/')) {
     requireAdmin(req);
     const id = Number(pathname.slice('/api/news/'.length));
@@ -373,15 +449,24 @@ async function handleApi(req, res, pathname) {
 
   if (method === 'POST' && pathname === '/api/signup') {
     const data = await readJson(req);
+    if (String(data.website || '').trim()) throw new ApiError(400, '表单校验未通过');
+
+    const inviteCode = String(data.invite_code || '').trim();
+    if (inviteCode.toLowerCase() !== db.settings.invite_code.toLowerCase()) {
+      throw new ApiError(403, '社团暗号不正确');
+    }
+
     const name = String(data.name || '').trim();
     const className = String(data.class_name || '').trim();
     const contact = String(data.contact || '').trim();
     const direction = String(data.direction || '').trim();
     const note = String(data.note || '').trim();
 
-    if (!name || name.length > 30) throw new ApiError(400, '请填写姓名（不超过 30 字）');
-    if (!className || className.length > 30) throw new ApiError(400, '请填写班级');
-    if (contact.length > 60) throw new ApiError(400, '联系方式过长');
+    if (!name || name.length > 10) throw new ApiError(400, '请填写姓名（不超过 10 字）');
+    if (!className || className.length > 15) throw new ApiError(400, '请填写班级（不超过 15 字）');
+    if (contact && !/^\d{5,15}$/.test(contact)) {
+      throw new ApiError(400, '请输入5-15位数字作为联系方式');
+    }
     if (!DIRECTIONS.includes(direction)) throw new ApiError(400, '意向方向不正确');
     if (note.length > 300) throw new ApiError(400, '备注请控制在 300 字以内');
 
@@ -399,6 +484,7 @@ async function handleApi(req, res, pathname) {
       contact,
       direction,
       note,
+      review_status: 'pending',
       created_at: nowText(),
     });
     saveDb();
@@ -427,7 +513,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   try {
     if (url.pathname.startsWith('/api/')) {
-      await handleApi(req, res, url.pathname);
+      await handleApi(req, res, url.pathname, url.searchParams);
     } else if (req.method === 'GET' || req.method === 'HEAD') {
       serveStatic(req, res, url.pathname);
     } else {

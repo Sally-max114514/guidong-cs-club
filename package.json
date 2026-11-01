@@ -6,10 +6,10 @@
   "scripts": {
     "build": "node build.js",
     "start": "node server.js",
-    "dev": "npm run build && npx --yes wrangler@4.50.0 pages dev dist",
-    "db:apply:local": "npx --yes wrangler@4.50.0 d1 migrations apply guidong-computer-club --local",
-    "db:apply:remote": "npx --yes wrangler@4.50.0 d1 migrations apply guidong-computer-club --remote",
-    "deploy": "npm run build && npx --yes wrangler@4.50.0 pages deploy dist --project-name=guidong-computer-club"
+    "dev": "npm run build && wrangler pages dev dist",
+    "db:apply:local": "wrangler d1 migrations apply guidong-computer-club --local",
+    "db:apply:remote": "wrangler d1 migrations apply guidong-computer-club --remote",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name=guidong-computer-club"
   },
   "engines": {
     "node": ">=20"

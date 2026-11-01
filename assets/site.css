@@ -149,6 +149,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   .doc-layout { grid-template-columns: 1fr; gap: 1.5rem; }
   .toc { position: static; }
   .row { grid-template-columns: 1fr; gap: .2rem; }
+  .field-pair { gap: .75rem; }
 }
 
 /* ---------- 动态 / 服务 / 后台 ---------- */
@@ -170,6 +171,7 @@ button.btn-primary:hover { background: #000; }
 .empty { padding: 1.75rem 0; color: var(--muted); font-size: .92rem; }
 
 .form { max-width: 34rem; }
+.field-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .field { margin-bottom: 1rem; }
 .field label { display: block; margin-bottom: .3rem; font-size: .88rem; }
 .field input, .field select, .field textarea {
@@ -197,7 +199,10 @@ button.btn-primary:hover { background: #000; }
 .panel h2 { margin: 0 0 1rem; font-size: 1.02rem; }
 .toolbar { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin-bottom: .9rem; }
 .toolbar .spacer { flex: 1 1 auto; }
+.toolbar select { padding: .32rem .5rem; border: 1px solid var(--line); background: #fff; font: inherit; font-size: .82rem; }
 .count { color: var(--muted); font-size: .88rem; }
+.signup-actions { display: flex; gap: .4rem; }
+.review-status { min-width: 5.5rem; padding: .3rem; border: 1px solid var(--line); background: #fff; font: inherit; font-size: .82rem; }
 .admin-item { display: flex; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid var(--line); }
 .admin-item:last-child { border-bottom: 0; }
 .admin-item h4 { margin: 0 0 .2rem; font-size: .92rem; }

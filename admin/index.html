@@ -37,6 +37,20 @@
 
     <div id="dash-view" hidden>
       <section class="panel">
+        <h2>系统设置 · 修改社团暗号</h2>
+        <form id="settings-form" class="form">
+          <div class="field">
+            <label for="invite-code">社团暗号 *</label>
+            <input id="invite-code" name="invite_code" maxlength="32" autocomplete="off" required>
+          </div>
+          <div id="settings-msg" hidden></div>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">保存暗号</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
         <h2>发布社团动态</h2>
         <form id="news-form" class="form">
           <div class="field">
@@ -75,6 +89,13 @@
           <h2 style="margin:0;">招新报名</h2>
           <span class="spacer"></span>
           <span class="count" id="signup-count"></span>
+          <label for="signup-filter">筛选</label>
+          <select id="signup-filter" aria-label="按审核状态筛选报名">
+            <option value="all">全部状态</option>
+            <option value="pending">待审核</option>
+            <option value="admitted">已录取</option>
+            <option value="rejected">未录取</option>
+          </select>
           <button class="btn btn-sm" id="refresh-signups" type="button">刷新</button>
           <a class="btn btn-sm" id="export-btn" href="../api/export.csv">导出 CSV 表格</a>
         </div>
@@ -125,9 +146,41 @@
       loginView.hidden = true;
       dashView.hidden = false;
       logoutBtn.hidden = false;
+      loadSettings();
       loadNews();
       loadSignups();
     }
+
+    // ---------- 系统设置 ----------
+    async function loadSettings() {
+      const input = document.getElementById('invite-code');
+      const msg = document.getElementById('settings-msg');
+      try {
+        const data = await api('../api/settings');
+        input.value = data.invite_code;
+        hideMessage(msg);
+      } catch (err) {
+        showMessage(msg, '加载社团暗号失败：' + err.message, 'msg-err');
+      }
+    }
+
+    document.getElementById('settings-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = document.getElementById('invite-code');
+      const msg = document.getElementById('settings-msg');
+      hideMessage(msg);
+      try {
+        await api('../api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invite_code: input.value }),
+        });
+        showMessage(msg, '修改成功。', 'msg-ok');
+        alert('修改成功');
+      } catch (err) {
+        showMessage(msg, err.message, 'msg-err');
+      }
+    });
 
     // ---------- 登录 ----------
     document.getElementById('login-form').addEventListener('submit', async (event) => {
@@ -230,8 +283,11 @@
     async function loadSignups() {
       const tableBox = document.getElementById('signups-table');
       const count = document.getElementById('signup-count');
+      const status = document.getElementById('signup-filter').value;
+      const exportButton = document.getElementById('export-btn');
+      exportButton.href = '../api/export.csv?status=' + encodeURIComponent(status);
       try {
-        const data = await api('../api/signups');
+        const data = await api('../api/signups?status=' + encodeURIComponent(status));
         const items = data.items || [];
         count.textContent = '共 ' + data.count + ' 人';
         tableBox.textContent = '';
@@ -246,7 +302,7 @@
         table.className = 'data-table';
         const head = document.createElement('thead');
         const headRow = document.createElement('tr');
-        for (const label of ['序号', '姓名', '班级', '联系方式', '意向方向', '备注', '报名时间']) {
+        for (const label of ['序号', '姓名', '班级', '联系方式', '意向方向', '备注', '审核状态', '报名时间', '操作']) {
           const th = document.createElement('th');
           th.textContent = label;
           headRow.append(th);
@@ -257,11 +313,67 @@
         const tbody = document.createElement('tbody');
         for (const item of items) {
           const tr = document.createElement('tr');
-          for (const value of [item.id, item.name, item.class_name, item.contact, item.direction, item.note, item.created_at]) {
+          for (const value of [item.id, item.name, item.class_name, item.contact, item.direction, item.note]) {
             const td = document.createElement('td');
             td.textContent = value;
             tr.append(td);
           }
+
+          const reviewCell = document.createElement('td');
+          const reviewSelect = document.createElement('select');
+          reviewSelect.className = 'review-status';
+          for (const [value, label] of [['pending', '待审核'], ['admitted', '已录取'], ['rejected', '未录取']]) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            reviewSelect.append(option);
+          }
+          reviewSelect.value = item.review_status || 'pending';
+          reviewCell.append(reviewSelect);
+          tr.append(reviewCell);
+
+          const createdCell = document.createElement('td');
+          createdCell.textContent = item.created_at;
+          tr.append(createdCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'signup-actions';
+          const saveButton = document.createElement('button');
+          saveButton.className = 'btn btn-sm';
+          saveButton.type = 'button';
+          saveButton.textContent = '保存状态';
+          saveButton.addEventListener('click', async () => {
+            saveButton.disabled = true;
+            try {
+              await api('../api/signups/' + item.id, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ review_status: reviewSelect.value }),
+              });
+              await loadSignups();
+            } catch (err) {
+              alert('更新审核状态失败：' + err.message);
+              saveButton.disabled = false;
+            }
+          });
+
+          const deleteButton = document.createElement('button');
+          deleteButton.className = 'btn btn-sm btn-danger';
+          deleteButton.type = 'button';
+          deleteButton.textContent = '删除';
+          deleteButton.addEventListener('click', async () => {
+            if (!confirm('确定删除这条报名记录？此操作无法撤销。')) return;
+            deleteButton.disabled = true;
+            try {
+              await api('../api/signups/' + item.id, { method: 'DELETE' });
+              await loadSignups();
+            } catch (err) {
+              alert('删除报名记录失败：' + err.message);
+              deleteButton.disabled = false;
+            }
+          });
+          actionsCell.append(saveButton, deleteButton);
+          tr.append(actionsCell);
           tbody.append(tr);
         }
         table.append(tbody);
@@ -273,6 +385,7 @@
     }
 
     document.getElementById('refresh-signups').addEventListener('click', loadSignups);
+    document.getElementById('signup-filter').addEventListener('change', loadSignups);
 
     // ---------- 启动 ----------
     (async () => {
